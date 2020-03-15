@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style type="text/css">
+#toggle{
+	position: absolute;
+	top: 9%;
+	left:13%;
+	width: 25%;
+	font-size:30px;
+	padding:10px;
+	text-align:center;
+}
+</style>
+</head>
+<body>
+	<script src="https://threejs.org/build/three.min.js"></script>
+	<script src="https://threejs.org/examples/js/controls/OrbitControls.js"></script>
+	<script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
+	<script src="https://raw.githack.com/mrdoob/three.js/dev/examples/js/loaders/MTLLoader.js"></script>
+	<script src="https://raw.githack.com/mrdoob/three.js/dev/examples/js/loaders/OBJLoader.js"></script>
+	<script src="https://jyunming-chen.github.io/tutsplus/js/KeyboardState.js"></script>
+	<button id = "toggle">stop</button>
+<script>
+var camera, camera3rd, scene, renderer;
+var Car = new THREE.Object3D();
+var modelName = "car";
+var Saguaro = new THREE.Object3D();
+var modelName = "saguaro";
+var Camel = new THREE.Object3D();
+var modelName = "camel";
+
+var keyboard = new KeyboardState();
+
+
+var WW = window.innerWidth ;
+var HH = window.innerHeight ;
+
+var clock = new THREE.Clock();
+var controls;
+var angle = 0, lightangle = 0, clock;
+var pointLight;
+
+var turn = true;
+
+$("#toggle").click(function(){
+	turn = !turn;
+	if(turn)
+		$("#toggle").text('stop');
+	else
+		$("#toggle").text('run')
+})
+
+init();
+animate();
+
+function init() {
+
+	renderer = new THREE.WebGLRenderer();
+	renderer.setSize(WW, HH);
+	document.body.appendChild (renderer.domElement);
+	renderer.setClearColor ('#DDDDDD');
+
+	camera3rd = new THREE.PerspectiveCamera(75, WW / HH, 1, 2000);
+	camera3rd.position.y = 100;
+
+	camera = new THREE.PerspectiveCamera(75, WW / HH, 1, 2000);
+	camera.position.set(-30, 50, 0);
+	renderer.autoClear = false;
+
+	controls = new THREE.OrbitControls(camera, renderer.domElement);
+	controls = new THREE.OrbitControls(camera3rd, renderer.domElement);
+
+	scene = new THREE.Scene();
+
+	pointLight = new THREE.PointLight (0xffffff, 1);
+	lightSphere = new THREE.Mesh(new THREE.SphereGeometry(5),
+	new THREE.MeshBasicMaterial({
+		color: 0xffff00,
+		wireframe: true
+	}));
+    scene.add(pointLight, lightSphere);	
+	
+	let loader = new THREE.TextureLoader()
+	let texture = loader.load('https://i.imgur.com/Ux8iPB8.jpg');
+
+	texture.wrapS = THREE.RepeatWrapping;
+	texture.wrapT = THREE.RepeatWrapping;
+	//texture.repeat.set(5, 5);
+	mesh = new THREE.Mesh(new THREE.PlaneGeometry(350,350), new THREE.MeshBasicMaterial({map: texture}))
+	mesh.rotation.x = -Math.PI/2;
+	scene.add(mesh);
+
+	window.addEventListener('resize', onWindowResize, false);
+    readModel('car', 40);
+	readModel2('saguaro', 40);
+	readModel3('camel', 40);
+}
+
+function onWindowResize() {
+
+	camera.aspect = WW / HH;
+	camera.updateProjectionMatrix();
+	
+	camera3rd.aspect = WW / HH;
+	camera3rd.updateProjectionMatrix();
+	
+	renderer.setSize(WW, HH);
+}
+
+function readModel (modelName, targetSize = 40) {
+
+  var onProgress = function(xhr) {
+    if (xhr.lengthComputable) {
+      var percentComplete = xhr.loaded / xhr.total * 100;
+      console.log(Math.round(percentComplete, 2) + '% downloaded');
+    }
+  };
+	var onError = function(xhr) {};
+
+	var mtlLoader = new THREE.MTLLoader();
+	mtlLoader.setPath('models/');
+	mtlLoader.load(modelName+'.mtl', function(materials) {
+
+    materials.preload();
+
+    var objLoader = new THREE.OBJLoader();
+    objLoader.setMaterials(materials);
+    objLoader.setPath('models/');
+    objLoader.load(modelName+'.obj', function(object) {
+	Car.add (unitize (object, 20));
+	scene.add (Car);
+    }, onProgress, onError);
+  });
+}
+
+function readModel2 (modelName, targetSize = 40) {
+
+  var onProgress = function(xhr) {
+    if (xhr.lengthComputable) {
+      var percentComplete = xhr.loaded / xhr.total * 100;
+      console.log(Math.round(percentComplete, 2) + '% downloaded');
+    }
+  };
+	var onError = function(xhr) {};
+
+	var mtlLoader = new THREE.MTLLoader();
+	mtlLoader.setPath('models/');
+	mtlLoader.load(modelName+'.mtl', function(materials) {
+
+    materials.preload();
+
+    var objLoader = new THREE.OBJLoader();
+    objLoader.setMaterials(materials);
+    objLoader.setPath('models/');
+    objLoader.load(modelName+'.obj', function(object) {
+	Saguaro.add (unitize (object, 80));
+	Saguaro.position.set(80,25,80);
+	scene.add (Saguaro);
+    }, onProgress, onError);
+  });
+}
+
+function readModel3 (modelName, targetSize = 40) {
+
+  var onProgress = function(xhr) {
+    if (xhr.lengthComputable) {
+      var percentComplete = xhr.loaded / xhr.total * 100;
+      console.log(Math.round(percentComplete, 2) + '% downloaded');
+    }
+  };
+	var onError = function(xhr) {};
+
+	var mtlLoader = new THREE.MTLLoader();
+	mtlLoader.setPath('models/');
+	mtlLoader.load(modelName+'.mtl', function(materials) {
+
+    materials.preload();
+
+    var objLoader = new THREE.OBJLoader();
+    objLoader.setMaterials(materials);
+    objLoader.setPath('models/');
+    objLoader.load(modelName+'.obj', function(object) {
+	Camel.add (unitize (object, 20));
+	Camel.position.set(-75,10,-75);
+	Camel.rotation.y = Math.PI/2;
+	scene.add (Camel);
+    }, onProgress, onError);
+  });
+}
+
+function unitize (object, targetSize) {  
+	
+	var box3 = new THREE.Box3();
+	box3.setFromObject (object);
+	var size = new THREE.Vector3();
+	size.subVectors (box3.max, box3.min);
+	var center = new THREE.Vector3();
+	center.addVectors(box3.max, box3.min).multiplyScalar (0.5);
+	
+	console.log ('center: ' + center.x + ', '+center.y + ', '+center.z );
+	console.log ('size: ' + size.x + ', ' +  size.y + ', '+size.z );
+	
+	var objSize = Math.max (size.x, size.y, size.z);
+	var scaleSet = targetSize/objSize;
+				
+	var theObject =  new THREE.Object3D();
+	theObject.add (object);
+	object.scale.set (scaleSet, scaleSet, scaleSet);
+	object.position.set (-center.x*scaleSet, -center.y*scaleSet, -center.z*scaleSet);
+	theObject.rotation.y = Math.PI/2;
+	return theObject;
+}
+
+function animate() {
+
+	var dt = clock.getDelta();
+	var x = 50*Math.cos(angle); //cos(0)=1
+	var z = 50*Math.sin(angle); //sin(0)=0
+
+	if (Car !== undefined && turn) { 
+		Car.position.set (x,9,-z);
+		Car.rotation.y = angle;
+		angle += dt;
+	}
+	
+    pointLight.position.set(30*Math.cos(lightangle), 80, 30*Math.sin(lightangle));
+    lightSphere.position.copy(pointLight.position);
+	lightangle += dt;
+	
+	update();
+	
+	var cameraset1 = Car.localToWorld (new THREE.Vector3(0,20,40));	//第三人稱視角
+	camera3rd.position.copy(cameraset1);
+	camera3rd.lookAt(Car.position);
+	
+	var cameraset2 = Car.localToWorld (new THREE.Vector3(0,70,0));	//上帝視角
+	camera.position.copy(cameraset2);
+	camera.lookAt(Car.position);	//相機看向的位置
+	camera.up.z = 1;	//相機以Z軸為上方
+	
+	requestAnimationFrame(animate);
+	render();
+}
+
+function render() {
+	
+	renderer.clear();
+	
+	renderer.setViewport(0, 0, WW/2, HH);//從(0,0)render到(0+WW/2,0+HH)
+	camera3rd.aspect = WW / 2 / HH;	//設置相機寬高比
+	camera3rd.updateProjectionMatrix();
+	renderer.render(scene, camera3rd);
+	
+	renderer.setViewport(WW/2, 0, WW/2, HH);	
+	camera.aspect = WW/ 2 / HH;
+	camera.updateProjectionMatrix();
+	renderer.render(scene, camera);
+}
+
+function update(){
+
+	controls.update();
+	keyboard.update();              
+}
+</script>
+</body>
+</html>
