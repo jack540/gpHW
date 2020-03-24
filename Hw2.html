@@ -1,0 +1,312 @@
+<DOCTYPE!>
+<html>
+<head>
+<style type="text/css">
+#info {
+  position: absolute;
+  top: 0px;
+  width: 100%;
+  padding: 10px;
+  text-align: center;
+  color: #ffff00
+}
+
+body {
+  overflow: hidden;
+}
+</style>
+</head>
+
+<body>
+
+<div id="info"><span style="font-size:50px;">Press 'Z'</span></div>
+<script src="https://threejs.org/build/three.min.js"></script>
+<script src="https://threejs.org/examples/js/controls/OrbitControls.js"></script>
+<script src="https://jyunming-chen.github.io/tutsplus/js/KeyboardState.js"></script>
+
+<audio id="collisionsound" style="display:none">
+<source src="https://jyunming-chen.github.io/game3js/gameHWhelpers/sounds/collision3.wav" type='audio/wav'>
+</audio>
+
+<script>
+var camera, scene, renderer;
+
+var pos, vel, force;
+var walls = [], pucks = [], rects = [];
+var pucklight;
+
+var keyboard = new KeyboardState();
+
+var dt = 0.1;
+var eps = 1e-3; // 0.001 Close enough
+var cR = 1.0;	//恢復係數
+
+var collisionSound
+
+var rect , car;
+var right = true;
+
+class Puck {
+
+	constructor(mesh, x, z, pucklight) {
+		
+		this.collisionSound = document.getElementById ('collisionsound');
+		
+		this.light = pucklight;
+		this.light.position.set(0,0,0);
+		scene.add(this.light);
+		
+		this.force = new THREE.Vector3(0,0,0);
+		this.vel = new THREE.Vector3(5-x, 0, 5-z);
+		this.pos = new THREE.Vector3();
+
+		
+		this.mesh = mesh;
+		scene.add(this.mesh);
+		this.mesh.position.set (0,0,0);
+		this.mesh.position.y += 2;
+	}
+
+	update (dt) {
+		
+		this.vel.add (this.force.clone().multiplyScalar(dt));
+		this.pos.add (this.vel.clone().multiplyScalar(dt));
+		
+		this.mesh.position.copy (this.pos);
+		this.light.position.copy (this.pos);
+		this.light.position.y += 30;
+		
+		// collision detection
+		for (var i = 0; i < walls.length; i++) {
+			
+			let wall = walls[i];
+			if (this.pos.clone().sub (wall.point).dot (wall.normal) < eps + 10) {
+				
+				this.collisionSound.play();
+				
+				var vN = wall.normal.clone().multiplyScalar(this.vel.dot (wall.normal));	//n*(v dot n)
+				var vT = this.vel.clone().sub(vN);	//沿面分量
+				// vel = vT + (- CR).vN
+				this.vel.copy (vT.add (vN.multiplyScalar(-cR) ));
+			}
+		}
+		
+		let Rect = makeRect(rect);
+		if (Check_Intersect (Rect, this.mesh, 10)) { //判斷有沒有碰到
+			
+			//console.log(rect.normal);
+			
+			//this.mesh.material.color = new THREE.Color ('red');
+			
+			var vN = rect.normal.clone().multiplyScalar(this.vel.dot (rect.normal));	//n*(v dot n)
+			var vT = this.vel.clone().sub(vN);	//沿面分量
+			// vel = vT + (- CR).vN
+			this.vel.copy (vT.add (vN.multiplyScalar(-cR) ));	
+			
+		} 
+		/*else {
+			this.mesh.material.color = new THREE.Color ('black');  
+		}*/
+	}
+}
+
+init();
+animate();
+
+function init() {
+	
+	scene = new THREE.Scene();
+	
+	renderer = new THREE.WebGLRenderer();
+	renderer.setSize(window.innerWidth, window.innerHeight);
+	renderer.setClearColor(0x888888);
+	document.body.appendChild(renderer.domElement);
+	
+	camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 1, 1000);
+	camera.position.z = 500;
+	let controls = new THREE.OrbitControls(camera, renderer.domElement);
+	
+	var pointlight = new THREE.PointLight(0xFFFFFF,0.5,200);
+	pointlight.position.set( 0, 70, 0 );
+	scene.add( pointlight );
+
+	var light = new THREE.AmbientLight( 0x202020 ); // soft white light
+	scene.add( light );
+	
+	var gridXZ = new THREE.GridHelper(200, 20, 'red', 'white');
+	//scene.add(gridXZ);
+	
+	var floor = new THREE.Mesh (new THREE.PlaneGeometry(200,200), new THREE.MeshPhongMaterial());
+	scene.add (floor);
+	floor.rotation.x = -Math.PI/2;
+	
+	buildwalls();
+///////////////////////////////////////////////////////////	
+	car = new THREE.Group();
+	rect = new THREE.Mesh (new THREE.CubeGeometry (20,10,10), new THREE.MeshBasicMaterial({}));
+	rect.position.set(0,5,0);
+	
+	car.add (rect);
+	rect.rotation.x = Math.PI/2;
+	rect.normal = new THREE.Vector3(-1,0,0);
+	scene.add (car);
+	//rects.push (rect);
+}
+
+function buildwalls()	{
+	
+	wall = new THREE.Mesh (new THREE.BoxGeometry (10, 20,200), new THREE.MeshPhongMaterial({color:'	#D0D0D0'}));
+	var wall_1 = wall.clone();
+	scene.add (wall_1);
+	
+	wall_1.position.set (105, 10, 0);
+	wall_1.point = new THREE.Vector3(100,0,0);
+	wall_1.normal = new THREE.Vector3(-1,0,0);
+	walls.push (wall_1);
+	
+	var wall_2 = wall.clone();
+	scene.add (wall_2);
+	
+	wall_2.position.set (-105, 10, 0);
+	wall_2.point = new THREE.Vector3(-100,0,0);
+	wall_2.normal = new THREE.Vector3(1,0,0);
+	walls.push (wall_2);
+
+	var wall_3 = wall.clone();
+	scene.add (wall_3);
+	
+	wall_3.position.set (0, 10, 105);
+	wall_3.rotation.y = Math.PI/2;
+	wall_3.point = new THREE.Vector3(0,0,100);
+	wall_3.normal = new THREE.Vector3(0,0,-1);
+	walls.push (wall_3);
+	
+	var wall_4 = wall.clone();
+	scene.add (wall_4);
+	
+	wall_4.position.set (0, 10, -105);
+	wall_4.rotation.y = Math.PI/2;
+	wall_4.point = new THREE.Vector3(0,0,-100);
+	wall_4.normal = new THREE.Vector3(0,0,1);
+	walls.push (wall_4);
+}
+
+function getRandomColor() {
+    var letters = '0123456789ABCDEF'.split('');	//分割
+    var color = '#';
+    for (var i = 0; i < 6; i++ ) {
+        color += letters[Math.floor(Math.random() * 16)];
+    }
+    return color;
+}
+
+function animate() {
+
+	keyboard.update();
+
+	if(right == true){
+		if(car.position.x == 40)
+			right = false;
+		else
+			car.position.x += 1;
+	}
+	else if(right == false){
+		if(car.position.x == -40)
+			right = true;
+		else
+			car.position.x -=1;
+	}	
+	
+	pucks.forEach(function (b){b.update (dt)});
+	
+	if(keyboard.down ('Q')){
+		
+		let x = Math.random()*10;
+		let z = Math.random()*10;
+		
+		let random = getRandomColor();
+		
+		pucklight = new THREE.PointLight( random, 1,100);
+		
+		let mesh = new THREE.Mesh (new THREE.CylinderGeometry (10,10,4,20), new THREE.MeshLambertMaterial({color:random}));
+		pucks.push( new Puck(mesh.clone(), x, z, pucklight));	
+	}	
+	requestAnimationFrame(animate);
+	render();
+}
+
+function makeRect(rect) {
+	let Rect = {};
+    Rect.max = car.localToWorld ( new THREE.Vector3(10, 0, 5) );
+    //右下端點
+    Rect.min = car.localToWorld ( new THREE.Vector3(-10, 0, -5) );
+    //左上端點
+    return Rect;
+}
+
+function objectCopy (src) {
+	return JSON.parse (JSON.stringify (src));
+}
+
+function Check_Intersect(Rect, C, Rad) {
+	const Rad2 = Rad * Rad;
+  
+ 	/* Translate coordinates, placing C at the origin. */
+ 	// duplicate R object here for computation ...
+    let R;
+    R = objectCopy (Rect);
+  
+  
+	R.max.x -= C.position.x;  R.max.z -= C.position.z;
+ 	R.min.x -= C.position.x;  R.min.z -= C.position.z;
+  
+ //document.write(R.min.z);
+
+
+	if (R.max.x < 0){ /* R到圓心的左側R to left of circle center */
+		
+		//rect.normal = new THREE.Vector3(1,0,1);
+		
+		if (R.max.z < 0) 		/*R在左(上)角 R in lower left corner */
+			return ((R.max.x * R.max.x + R.max.z * R.max.z) < Rad2);
+		  //到圓內就會小於 return true
+		
+		else if (R.min.z > 0) 	/*左(下)角的R R in upper left corner */
+			return ((R.max.x * R.max.x + R.min.z * R.min.z) < Rad2);
+		
+		else 					/*R圓以西 R due West of circle */
+			return(Math.abs(R.max.x) < Rad);
+    }
+ 	else if (R.min.x > 0){  	/* R到圓心右側R to right of circle center*/
+   		
+		//rect.normal = new THREE.Vector3(-1,0,0);
+		
+		if (R.max.z < 0) 	/* R in lower right corner */
+			return ((R.min.x * R.min.x + R.max.z * R.max.z) < Rad2);
+	  
+		else if (R.min.z > 0)  	/* R in upper right corner */
+			return ((R.min.x * R.min.x + R.min.z * R.min.z) < Rad2);
+		else 				/* R due East of circle */
+			return (R.min.x < Rad);
+    }
+ 	
+	else{	/*圓垂直中心線上的R R on circle vertical centerline */
+   		
+		//rect.normal = new THREE.Vector3(0,0,1);
+		
+		if (R.max.z < 0) 	/* R due South of circle */
+     		return (Math.abs(R.max.z) < Rad);
+		else if (R.min.z > 0)  	/* R due North of circle */
+     		return (R.min.z < Rad);
+		else 				/* R contains circle centerpoint */
+     		return(true);
+	}		
+}
+ 	
+function render() {
+	
+	renderer.render(scene, camera);
+}
+</script>
+</body>
+</html>
