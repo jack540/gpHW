@@ -60,7 +60,6 @@ class Puck {
 		this.vel = new THREE.Vector3(5-x, 0, 5-z);
 		this.pos = new THREE.Vector3();
 
-		
 		this.mesh = mesh;
 		scene.add(this.mesh);
 		this.mesh.position.set (0,0,0);
@@ -68,6 +67,8 @@ class Puck {
 	}
 
 	update (dt) {
+		
+		rect.point = rect.position;
 		
 		this.vel.add (this.force.clone().multiplyScalar(dt));
 		this.pos.add (this.vel.clone().multiplyScalar(dt));
@@ -90,23 +91,55 @@ class Puck {
 				this.vel.copy (vT.add (vN.multiplyScalar(-cR) ));
 			}
 		}
+		/*if (this.pos.clone().sub (rect.point).dot (rect.normal) < eps + 10) {
 		
-		let Rect = makeRect(rect);
-		if (Check_Intersect (Rect, this.mesh, 10)) { //判斷有沒有碰到
-			
-			//console.log(rect.normal);
-			
-			//this.mesh.material.color = new THREE.Color ('red');
-			
-			var vN = rect.normal.clone().multiplyScalar(this.vel.dot (rect.normal));	//n*(v dot n)
-			var vT = this.vel.clone().sub(vN);	//沿面分量
-			// vel = vT + (- CR).vN
-			this.vel.copy (vT.add (vN.multiplyScalar(-cR) ));	
-			
-		} 
-		/*else {
-			this.mesh.material.color = new THREE.Color ('black');  
+			if (Check_Intersect (rect, this.mesh, 10)) { //判斷有沒有碰到
+				
+				//this.mesh.material.color = new THREE.Color ('red');
+				
+				var vN = rect.normal.clone().multiplyScalar(this.vel.dot (rect.normal));	//n*(v dot n)
+				var vT = this.vel.clone().sub(vN);	//沿面分量
+				// vel = vT + (- CR).vN
+				this.vel.copy (vT.add (vN.multiplyScalar(-cR) ));
+				
+				this.mesh.position.add(rect.normal.clone().multiplyScalar(5-this.pos.clone().sub (rect.point).dot(rect.normal)));
+				this.pos = this.mesh.position;
+			}
+		
 		}*/
+		for (var i = 0; i < pucks.length; i++) {	//ball-ball碰撞
+			
+			let puck = pucks[i];
+			let v1 = this;	//可以用constructor的所有this
+			let v2 = puck;
+			
+			let Distance = v1.mesh.position.distanceTo(v2.mesh.position);
+			
+			if(v1 != v2) {
+				if(Distance <= 20){
+					
+					//x1, x2 是位置
+					//v1' = v1 * (v1-v2 dot x1-x2) / D^2
+					//速度修正
+					let k1 = v1.vel.clone().sub(v2.vel.clone()).dot (v1.mesh.position.clone().sub(v2.pos.clone())) / (Distance * Distance);
+					let k2 = v2.vel.clone().sub(v1.vel.clone()).dot (v2.pos.clone().sub(v1.mesh.position.clone())) / (Distance * Distance);
+					
+					let x1x2 = v1.mesh.position.clone().sub (v2.pos.clone()).multiplyScalar(k1);
+					let x2x1 = v2.pos.clone().sub (v1.mesh.position.clone()).multiplyScalar(k2);
+					
+					v1.vel = v1.vel.clone().sub(x1x2);
+					v2.vel = v2.vel.clone().sub(x2x1);
+					
+					//t^ = normalize(x2-x1)
+					// d = 2R-|x2-x1|
+					//x1' = x1 - ( d/2 * t ) 
+					//x2' = x2 + ( d/2 * t )
+					//碰撞後位置修正
+					v1.mesh.position.sub(v2.mesh.position.clone().sub(v1.mesh.position.clone()).normalize().multiplyScalar( (20-Distance)/2) );
+					v2.mesh.position.add(v2.mesh.position.clone().sub(v1.mesh.position.clone()).normalize().multiplyScalar( (20-Distance)/2) );
+				}
+			}
+		}
 	}
 }
 
@@ -142,15 +175,14 @@ function init() {
 	
 	buildwalls();
 ///////////////////////////////////////////////////////////	
-	car = new THREE.Group();
+	
 	rect = new THREE.Mesh (new THREE.CubeGeometry (20,10,10), new THREE.MeshBasicMaterial({}));
 	rect.position.set(0,5,0);
 	
-	car.add (rect);
 	rect.rotation.x = Math.PI/2;
-	rect.normal = new THREE.Vector3(-1,0,0);
-	scene.add (car);
-	//rects.push (rect);
+	rect.point = new THREE.Vector3(0,0,0);
+	rect.normal = new THREE.Vector3(0,0,1);
+	scene.add (rect);
 }
 
 function buildwalls()	{
@@ -205,21 +237,21 @@ function animate() {
 	keyboard.update();
 
 	if(right == true){
-		if(car.position.x == 40)
+		if(rect.position.x == 40)
 			right = false;
 		else
-			car.position.x += 1;
+			rect.position.x += 1;
 	}
 	else if(right == false){
-		if(car.position.x == -40)
+		if(rect.position.x == -40)
 			right = true;
 		else
-			car.position.x -=1;
+			rect.position.x -=1;
 	}	
 	
 	pucks.forEach(function (b){b.update (dt)});
 	
-	if(keyboard.down ('Q')){
+	if(keyboard.down ('Q')) {
 		
 		let x = Math.random()*10;
 		let z = Math.random()*10;
@@ -235,15 +267,6 @@ function animate() {
 	render();
 }
 
-function makeRect(rect) {
-	let Rect = {};
-    Rect.max = car.localToWorld ( new THREE.Vector3(10, 0, 5) );
-    //右下端點
-    Rect.min = car.localToWorld ( new THREE.Vector3(-10, 0, -5) );
-    //左上端點
-    return Rect;
-}
-
 function objectCopy (src) {
 	return JSON.parse (JSON.stringify (src));
 }
@@ -251,12 +274,10 @@ function objectCopy (src) {
 function Check_Intersect(Rect, C, Rad) {
 	const Rad2 = Rad * Rad;
   
- 	/* Translate coordinates, placing C at the origin. */
- 	// duplicate R object here for computation ...
-    let R;
-    R = objectCopy (Rect);
-  
-  
+    let R = objectCopy (Rect);
+	
+	console.log(Rect)
+	
 	R.max.x -= C.position.x;  R.max.z -= C.position.z;
  	R.min.x -= C.position.x;  R.min.z -= C.position.z;
   
