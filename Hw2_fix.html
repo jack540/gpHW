@@ -1,0 +1,399 @@
+<DOCTYPE!>
+<html>
+<head>
+<style type="text/css">
+body {
+  overflow: hidden;
+}
+</style>
+</head>
+
+<body>
+<script src="https://threejs.org/build/three.min.js"></script>
+<script src="https://threejs.org/examples/js/controls/OrbitControls.js"></script>
+<script src="https://jyunming-chen.github.io/tutsplus/js/KeyboardState.js"></script>
+
+<audio id="collisionsound" style="display:none">
+<source src="https://jyunming-chen.github.io/game3js/gameHWhelpers/sounds/collision3.wav" type='audio/wav'>
+</audio>
+
+<script>
+var camera, scene, renderer;
+
+var pos, vel, force;
+var walls = [], pucks = [];
+var pucklight;
+
+var keyboard = new KeyboardState();
+
+var dt = 0.1;
+var eps = 1e-3; // 0.001 Close enough
+var cR = 1.0;	//恢復係數
+
+var collisionSound
+
+var rect , car;
+var right = true;
+
+var boxes = [];
+
+class Puck {
+
+	constructor(mesh, x, z, pucklight) {
+		
+		this.collisionSound = document.getElementById ('collisionsound');
+		
+		this.light = pucklight;
+		this.light.position.set(0,0,0);
+		scene.add(this.light);
+		
+		this.force = new THREE.Vector3(0,0,0);
+		this.vel = new THREE.Vector3(5-x * 2, 0, 5-z);
+		this.pos = new THREE.Vector3(Math.random() *150 - 60 , 0, Math.random() * 150 -60);
+
+		this.mesh = mesh;
+		scene.add(this.mesh);
+		this.mesh.position.set (0,0,0);
+		this.mesh.position.y += 2;
+	}
+
+	update (dt) {
+		
+		this.vel.add (this.force.clone().multiplyScalar(dt));
+		this.pos.add (this.vel.clone().multiplyScalar(dt));
+		
+		this.mesh.position.copy (this.pos);
+		this.light.position.copy (this.pos);
+		this.light.position.y += 30;
+		
+		// collision detection
+		for (var i = 0; i < walls.length; i++) {
+			
+			let wall = walls[i];
+			if (this.pos.clone().sub (wall.point).dot (wall.normal) < eps + 10) {
+				
+				this.collisionSound.play();
+				
+				var vN = wall.normal.clone().multiplyScalar(this.vel.dot (wall.normal));	//n*(v dot n)
+				var vT = this.vel.clone().sub(vN);	//沿面分量
+				// vel = vT + (- CR).vN
+				this.vel.copy (vT.add (vN.multiplyScalar(-cR) ));
+			}
+		}
+		for (var i = 0; i < pucks.length; i++) {	//ball-ball碰撞
+			
+			let puck = pucks[i];
+			let v1 = this;	//可以用constructor的所有this
+			let v2 = puck;
+			
+			let Distance = v1.mesh.position.distanceTo(v2.mesh.position);
+			
+			if(v1 != v2) {
+				if(Distance <= 20){
+					
+					//x1, x2 是位置
+					//v1' = v1 * (v1-v2 dot x1-x2) / D^2
+					//速度修正
+					let k1 = v1.vel.clone().sub(v2.vel.clone()).dot (v1.mesh.position.clone().sub(v2.pos.clone())) / (Distance * Distance);
+					let k2 = v2.vel.clone().sub(v1.vel.clone()).dot (v2.pos.clone().sub(v1.mesh.position.clone())) / (Distance * Distance);
+					
+					let x1x2 = v1.mesh.position.clone().sub (v2.pos.clone()).multiplyScalar(k1);
+					let x2x1 = v2.pos.clone().sub (v1.mesh.position.clone()).multiplyScalar(k2);
+					
+					v1.vel = v1.vel.clone().sub(x1x2);
+					v2.vel = v2.vel.clone().sub(x2x1);
+					
+					//t^ = normalize(x2-x1)
+					// d = 2R-|x2-x1|
+					//x1' = x1 - ( d/2 * t ) 
+					//x2' = x2 + ( d/2 * t )
+					//碰撞後位置修正
+					v1.mesh.position.sub(v2.mesh.position.clone().sub(v1.mesh.position.clone()).normalize().multiplyScalar( (20-Distance)/2) );
+					v2.mesh.position.add(v2.mesh.position.clone().sub(v1.mesh.position.clone()).normalize().multiplyScalar( (20-Distance)/2) );
+				}
+			}
+		}
+	}
+}
+class Bound {
+	static boundBoxboundBox(puck, box) {	
+
+		/*
+		   |
+		---+-->X
+		   ↓ Z
+		將XZ坐標系轉90度思考
+		   ↑ X
+		---+-->Z
+		   |
+		*/
+		
+		let R = 10;
+		let Rad2 = R*R;
+		let max = new THREE.Vector2(box.max.x - puck.pos.x, box.max.z - puck.pos.z);
+		let min = new THREE.Vector2(box.min.x - puck.pos.x, box.min.z - puck.pos.z);		
+		
+		let where = {
+			'collision': false,
+			'normal': null,
+			'point': null
+		};
+		if (max.x < 0){ //puck在box的上方
+			if (max.y < 0) { //puck在box右上角撞到(+x+z)
+				if((max.x * max.x + max.y * max.y) < Rad2) {
+					where.collision = true;
+					where.point = new THREE.Vector3(box.max.x, puck.pos.y, box.max.z);
+					where.normal = puck.pos.clone().sub(where.point).normalize();//右上向量				
+				}
+			}
+			else if (min.y > 0){ //puck在box左上上角撞到(+x-z)
+				if (max.x * max.x + min.y * min.y < Rad2) {
+					where.collision = true;
+					where.point = new THREE.Vector3(box.max.x, puck.pos.y, box.min.z);//左上向量
+					where.normal = puck.pos.clone().sub(where.point).normalize();
+				}
+			}
+			else {
+				//puck正上面撞到box(+x)
+				if (Math.abs(max.x) < R) {
+					where.collision = true;
+					where.point = new THREE.Vector3(box.max.x, 0, 0);
+					where.normal = new THREE.Vector3(1, 0, 0);//正上方向量
+				}
+			}
+		}
+		else if (min.x > 0) {//puck在box的下方
+			if (max.y < 0) {
+				if (min.x * min.x + max.y * max.y < Rad2) {//puck在box右下角撞到(-x+z)
+					where.collision = true;
+					where.point = new THREE.Vector3(box.min.x, puck.pos.y, box.max.z);
+					where.normal = puck.pos.clone().sub(where.point).normalize();//右下向量
+				}
+			}
+			else if (min.y > 0) {
+				if (min.x * min.x + min.y * min.y < Rad2) {//puck在box左下角撞到(-x-z)
+					where.collision = true;
+					where.point = new THREE.Vector3(box.min.x, puck.pos.y, box.min.z);
+					where.normal = puck.pos.clone().sub(where.point).normalize();//左下向量
+				}
+			}
+			else {
+				//puck正下面撞到box(-x)
+				if (min.x < R) {
+					where.collision = true;
+					where.point = new THREE.Vector3(box.min.x, 0, 0);
+					where.normal = new THREE.Vector3(-1, 0, 0);//正下方向量
+				}
+			}
+		}
+		else {
+			if (max.y < 0) {
+				//puck正右邊撞到box(+z)
+				if (Math.abs(max.y) < R) {
+					where.collision = true;
+					where.point = new THREE.Vector3(0, 0, box.max.z);
+					where.normal = new THREE.Vector3(0, 0, 1);//正右邊向量
+				}
+			}
+			else if (min.y > 0) {
+				//puck正左邊撞到box(-z)
+				if (min.y < R) {
+					where.collision = true;
+					where.point = new THREE.Vector3(0, 0, box.min.z);
+					where.normal = new THREE.Vector3(0, 0, -1);//正左邊向量
+				}
+			}
+		}
+		if (where.collision) { //算碰撞
+			let vN = where.normal.clone().multiplyScalar(puck.vel.dot(where.normal));
+			//水平分力
+			let vT = puck.vel.clone().sub(vN);//沿面分量
+			// vel = vT + (- CR).vN
+			puck.vel.copy(vT.add(vN.multiplyScalar(-cR)));
+			
+			let modify = where.normal.clone().multiplyScalar(10 - (puck.pos.clone().sub(where.point).dot(where.normal)));
+			puck.pos.add(modify);
+		}
+	}
+}
+class Box {
+    
+	constructor(pos, size) {
+	
+        this.size = size;
+        this.box = new THREE.Mesh(
+            new THREE.BoxGeometry(size.x, size.y, size.z),
+            new THREE.MeshBasicMaterial({color:'#D0D0D0'})
+        );
+        this.box.position.copy(pos);
+        this.max = new THREE.Vector3(pos.x + size.x / 2, 0, pos.z + size.z / 2);//右下的點
+        this.min = new THREE.Vector3(pos.x - size.x / 2, 0, pos.z - size.z / 2);//左上的點
+        this.normal = [ //法向量
+            new THREE.Vector3(1, 0, 0),//往正x軸
+            new THREE.Vector3(-1, 0, 0),//往負x軸
+            new THREE.Vector3(0, 0, 1),//往正z軸
+            new THREE.Vector3(0, 0, -1),//往負z軸
+        ];
+		this.speed = 10;
+    }
+
+    move(dt) {
+	/*
+	if(right == true){
+		if(rect.position.x == 40)
+			right = false;
+		else
+			rect.position.x += 1;
+	}
+	else if(right == false){
+		if(rect.position.x == -40)
+			right = true;
+		else
+			rect.position.x -=1;
+	}*/		
+	
+        //1秒60幀 一秒動/60距離
+        if (Math.abs(this.box.position.x) >= (130 - this.size.x * 2)) {
+            this.speed *= -1;
+        }
+        let x = this.speed * dt;
+        this.box.position.x += x;
+        this.max.x += x;
+        this.min.x += x;
+    }
+}
+
+init();
+animate();
+
+function init() {
+	
+	scene = new THREE.Scene();
+	
+	renderer = new THREE.WebGLRenderer();
+	renderer.setSize(window.innerWidth, window.innerHeight);
+	renderer.setClearColor(0x888888);
+	document.body.appendChild(renderer.domElement);
+	
+	camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 1, 1000);
+	camera.position.set(0,200,250);
+	let controls = new THREE.OrbitControls(camera, renderer.domElement);
+	
+	var pointlight = new THREE.PointLight(0xFFFFFF,0.5,200);
+	pointlight.position.set( 0, 70, 0 );
+	scene.add( pointlight );
+
+	var light = new THREE.AmbientLight( 0x202020 ); // soft white light
+	scene.add( light );
+	
+	var gridXZ = new THREE.GridHelper(200, 20, 'red', 'white');
+	//scene.add(gridXZ);
+	
+	var floor = new THREE.Mesh (new THREE.PlaneGeometry(200,200), new THREE.MeshPhongMaterial());
+	scene.add (floor);
+	floor.rotation.x = -Math.PI/2;
+	
+	buildwalls();
+	
+	boxesInit();
+	bulidPuck();
+}
+
+function buildwalls()	{
+	
+	wall = new THREE.Mesh (new THREE.BoxGeometry (10, 20,200), new THREE.MeshPhongMaterial({color:'#D0D0D0'}));
+	var wall_1 = wall.clone();
+	scene.add (wall_1);
+	
+	wall_1.position.set (105, 10, 0);
+	wall_1.point = new THREE.Vector3(100,0,0);
+	wall_1.normal = new THREE.Vector3(-1,0,0);
+	walls.push (wall_1);
+	
+	var wall_2 = wall.clone();
+	scene.add (wall_2);
+	
+	wall_2.position.set (-105, 10, 0);
+	wall_2.point = new THREE.Vector3(-100,0,0);
+	wall_2.normal = new THREE.Vector3(1,0,0);
+	walls.push (wall_2);
+
+	var wall_3 = wall.clone();
+	scene.add (wall_3);
+	
+	wall_3.position.set (0, 10, 105);
+	wall_3.rotation.y = Math.PI/2;
+	wall_3.point = new THREE.Vector3(0,0,100);
+	wall_3.normal = new THREE.Vector3(0,0,-1);
+	walls.push (wall_3);
+	
+	var wall_4 = wall.clone();
+	scene.add (wall_4);
+	
+	wall_4.position.set (0, 10, -105);
+	wall_4.rotation.y = Math.PI/2;
+	wall_4.point = new THREE.Vector3(0,0,-100);
+	wall_4.normal = new THREE.Vector3(0,0,1);
+	walls.push (wall_4);
+}
+
+function getRandomColor() {
+    var letters = '0123456789ABCDEF'.split('');	//分割
+    var color = '#';
+    for (var i = 0; i < 6; i++ ) {
+        color += letters[Math.floor(Math.random() * 16)];
+    }
+    return color;
+}
+
+function animate() {
+
+	keyboard.update();
+
+	boxes[0].move(dt);
+	
+	pucks.forEach(function (b){b.update (dt)});
+	
+		//球與箱子碰撞
+	for (let j = 0; j < pucks.length; j++) {
+		Bound.boundBoxboundBox(pucks[j], boxes[0]);
+	}
+	
+	requestAnimationFrame(animate);
+	render();
+}
+
+function bulidPuck() {
+	for(let i=0;i<4;i++) {
+		
+		let x = Math.random()*10;
+		let z = Math.random()*10;
+		
+		let random = getRandomColor();
+		
+		pucklight = new THREE.PointLight( random, 1,100);
+		
+		let mesh = new THREE.Mesh (new THREE.CylinderGeometry (10,10,4,20), new THREE.MeshLambertMaterial({color:random}));
+		pucks.push( new Puck(mesh.clone(), x, z, pucklight));	
+	}	
+}
+
+function boxesInit() {
+    boxes = [
+        new Box(new THREE.Vector3(0, 20, 0), new THREE.Vector3(40, 40, 20)),
+        //new Box(new THREE.Vector3(120, 30, -80), new THREE.Vector3(30, 60, 100)),
+        //new Box(new THREE.Vector3(-160, 30, 30), new THREE.Vector3(60, 60, 40)),
+        //new Box(new THREE.Vector3(-120, 30, 120), new THREE.Vector3(30, 60, 30))
+    ];
+    boxes.forEach((i) => {
+        scene.add(i.box);
+    })
+}
+ 	
+function render() {
+	
+	renderer.render(scene, camera);
+}
+</script>
+</body>
+</html>
