@@ -32,7 +32,7 @@ body {
 <script src="https://raw.githack.com/mrdoob/three.js/dev/examples/js/loaders/OBJLoader.js"></script>
 
 <audio id="Sound" autoplay loop style="display:none">
-<source src="C:\Users\李泰逸\Desktop\gpHW\music\Pink Panther Walk .mp3"  type='audio/mp3'>
+<source src="music/Pink Panther Walk .mp3"  type='audio/mp3'>
 </audio>
 
 
@@ -131,7 +131,7 @@ animate();
 function init() {
 	
 	sound = document.getElementById ('Sound');
-	sound.pause();
+	sound.play();
 	
 	scene = new THREE.Scene();
 	renderer = new THREE.WebGLRenderer();
