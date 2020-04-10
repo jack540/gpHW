@@ -1,0 +1,394 @@
+<DOCTYPE!>
+<html>
+<head>
+<style type="text/css">
+#info {
+  position: absolute;
+  top: 10px;
+  width: 100%;
+  padding: 10px;
+  text-align: center;
+  color: #ffff00
+}
+#gui {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+}
+body {
+  overflow: hidden;
+}
+</style>
+</head>
+
+<body>
+
+<script src="https://threejs.org/build/three.min.js"></script>
+<script src="https://threejs.org/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dat-gui/0.5/dat.gui.min.js"></script>
+<script src="https://raw.githack.com/mrdoob/three.js/dev/examples/js/misc/Gyroscope.js"></script>
+<script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
+<script src="https://raw.githack.com/mrdoob/three.js/dev/examples/js/loaders/MTLLoader.js"></script>
+<script src="https://raw.githack.com/mrdoob/three.js/dev/examples/js/loaders/OBJLoader.js"></script>
+
+<audio id="Sound" autoplay loop style="display:none">
+<source src="C:\Users\李泰逸\Desktop\gpHW\music\Pink Panther Walk .mp3"  type='audio/mp3'>
+</audio>
+
+
+<script>
+class Footprint_right {
+
+	constructor(mesh,pz,opacity) {
+		
+		this.mesh = mesh;		
+		scene.add (this.mesh);
+		this.mesh.material.opacity = opacity;	
+	}
+	
+	update(dt) {
+	
+		this.mesh.material.opacity -= 0.01;
+		if (this.mesh.material.opacity < 0)
+			foots_right.shift();	//會移除 ( 取出) 陣列的第一個元素。	
+			
+	}
+}
+class Footprint_left {
+
+	constructor(mesh,pz,opacity) {
+		
+		this.mesh = mesh;
+		scene.add (this.mesh);
+		this.mesh.material.opacity = opacity;
+		
+		//this.mesh.position.set(0, 1e-2, pz);	
+		//this.mesh.position.y = 1e-2;
+		//this.mesh.rotation.x = -Math.PI/2;		
+	}
+	
+	update(dt) {
+	
+		this.mesh.material.opacity -= 0.01;
+		
+		if (this.mesh.material.opacity < 0)
+			
+			foots_left.shift();	//會移除 ( 取出) 陣列的第一個元素。		
+	}
+}
+
+var time1 = 0, time2 = 0;
+var num = 0;
+var dt = 0.1;
+var foots_right = [];
+var foots_left = [];
+var opacity = 3.0;
+
+var sound, isPaused = false;
+var angle = 0;
+var camera, scene, renderer;
+var k = 10;
+//var gcontrol;
+
+//////////////////////////////////////////////////////////////////
+var theta1 = 0, theta2 = 0 /*left leg*/, theta3 = 0;//right leg
+var pose1 = {
+	theta1: .5,
+	theta2: -.6,
+	theta3: .4
+}
+var pose2 = {
+	theta1: -.15,
+	theta2: -.4,
+	theta3: .7
+}
+var pose3 = {
+	theta1: -.8,
+	theta2: .4,
+	theta3: -.6
+}
+var pose4 = {
+	theta1: -.15,
+	theta2: .6,
+	theta3: -.4
+}
+var keys = [
+  [0, pose1],
+  [0.25, pose2],
+  [0.5, pose3],
+  [0.75, pose4],
+  [1, pose1]
+];
+
+var T = 120/112; //週期
+var clock = new THREE.Clock();
+var ts = clock.getElapsedTime();  // start time 獲取自時鐘啟動后的秒數,摒棄將 oldTime 設置為當前時間
+var intKey = [];
+
+init();
+animate();
+
+function init() {
+	
+	sound = document.getElementById ('Sound');
+	sound.pause();
+	
+	scene = new THREE.Scene();
+	renderer = new THREE.WebGLRenderer();
+	renderer.setSize(window.innerWidth, window.innerHeight);
+	renderer.setClearColor(0x888888);
+	document.body.appendChild(renderer.domElement);
+	
+	camera = new THREE.PerspectiveCamera(80, window.innerWidth / window.innerHeight, 1, 2000);
+	camera.position.set(0,300,400);
+	let controls = new THREE.OrbitControls(camera, renderer.domElement);
+  
+	/////////////////////////////////////////////////////
+  
+	var mine = bulidMine();
+
+	gyro = new THREE.Gyroscope(); //Gyroscope
+	scene.add (gyro);
+	gyro.add (camera);
+	mine.add (gyro);
+	
+	let loader = new THREE.TextureLoader();
+	let texture = loader.load('https://i.imgur.com/Ux8iPB8.jpg');
+
+	texture.wrapS = THREE.RepeatWrapping;
+	texture.wrapT = THREE.RepeatWrapping;
+	mesh = new THREE.Mesh(new THREE.PlaneGeometry(2000,2000), new THREE.MeshBasicMaterial({map: texture}))
+	mesh.rotation.x = -Math.PI/2;
+	scene.add(mesh);
+	
+	let skytexture = loader.load('https://i.imgur.com/DhOWYZg.jpg?1');
+	var Sky = new THREE.Mesh(new THREE.SphereGeometry(1000,500,500), 
+		new THREE.MeshBasicMaterial({ map:skytexture, side:THREE.DoubleSide}));
+	scene.add(Sky);
+
+  	
+}
+
+function buildFootPrint_right(num,angle) {
+	
+	var loader = new THREE.TextureLoader();
+	tex = loader.load ('https://i.imgur.com/rxExOL3.png');
+
+	let mesh = new THREE.Mesh (new THREE.PlaneGeometry (30,30), 
+	new THREE.MeshBasicMaterial({map: tex, alphaTest:0.5, transparent: true}));
+	
+	mesh.position.set (407*Math.cos(angle), 1e-2, -407*Math.sin(angle));
+	
+	mesh.rotation.z = angle;
+	mesh.rotation.x = -Math.PI/2;
+
+	foots_right.push( new Footprint_right(mesh.clone(),num,opacity));
+}
+
+function buildFootPrint_left(num,angle) {
+	
+	var loader = new THREE.TextureLoader();
+	tex = loader.load ('https://i.imgur.com/LSptHID.png');
+
+	let mesh = new THREE.Mesh (new THREE.PlaneGeometry (30,30), 
+	new THREE.MeshBasicMaterial({map: tex, alphaTest:0.5, transparent: true}));
+	
+	mesh.position.set (393*Math.cos(angle), 1e-2, -393*Math.sin(angle));
+	
+	mesh.rotation.z = angle;
+	mesh.rotation.x = -Math.PI/2;
+
+	foots_left.push( new Footprint_left(mesh.clone(),num,opacity));
+}
+
+function bulidMine() {
+	
+	mine = new THREE.Group();
+	head = makeHead();
+	torso = makeTorso();
+	mine.add (head, torso);
+	head.position.y = 7.57*k;
+	torso.position.y = 4.09*k;
+	
+	rightarm = makeArm();
+	rightarm.position.set (-(1.26*k+0.62*k), 7.57*k, 0);
+	
+	leftarm = makeArm();
+	leftarm.position.set (1.26*k+0.62*k, 7.57*k, 0);
+	mine.add (leftarm, rightarm);
+  
+	rightleg = makeLeg();
+	rightleg.position.set (-0.63*k, 4.09*k, 0);
+	leftleg = makeLeg();
+	leftleg.position.set (0.63*k, 4.09*k, 0);
+  
+	mine.add (leftleg, rightleg);
+  
+	scene.add (mine);
+
+	rightarm.rotation.z = -Math.PI/2;
+	leftarm.rotation.z = -Math.PI/2;
+	
+	rightleg.rotation.z = -Math.PI/2;
+	leftleg.rotation.z = -Math.PI/2;
+  
+	rightarm.rotation.order = 'ZYX';
+	leftarm.rotation.order = 'ZYX';
+	rightleg.rotation.order = 'ZYX';
+	leftleg.rotation.order = 'ZYX';
+	
+	return mine;
+}
+
+function makeArm() {
+
+	const skinMap = new THREE.TextureLoader().load('https://i.imgur.com/1Mcu3Qp.jpg');
+	const headMaterials = [];
+	
+	for (let i = 0; i < 6; i++) {
+		let map = skinMap;
+		headMaterials.push(new THREE.MeshBasicMaterial({ map: map }));
+	}
+
+	var group = new THREE.Group();
+	var mat = new THREE.MeshNormalMaterial({});
+	var body = new THREE.Mesh (new THREE.BoxGeometry(3.82*k, 1.24*k, 1.24*k), headMaterials);
+	
+	group.add (body);
+	body.position.x = 3.82*k/2;
+	return group;
+}
+
+function makeLeg() {
+
+	const skinMap = new THREE.TextureLoader().load('https://i.imgur.com/1Mcu3Qp.jpg');	
+	const headMaterials = [];
+	
+	for (let i = 0; i < 6; i++) {
+		let map = skinMap;
+		headMaterials.push(new THREE.MeshBasicMaterial({ map: map }));
+	}
+	
+	var group = new THREE.Group();
+	var mat = new THREE.MeshNormalMaterial({});
+	var body = new THREE.Mesh (new THREE.BoxGeometry(4.09*k, 1.26*k, 1.26*k), headMaterials);
+	
+	group.add (body);
+	body.position.x = 4.09*k/2;
+	return group;
+}
+
+function makeHead() {
+
+	// 臉部
+	const headMap = new THREE.TextureLoader().load('https://i.imgur.com/VD3kFN9.png');
+	const rightMap = new THREE.TextureLoader().load('https://i.imgur.com/A0xJGl6.png');
+	const leftMap = new THREE.TextureLoader().load('https://i.imgur.com/7nsSRQk.png');
+	// 皮膚
+	const skinMap = new THREE.TextureLoader().load('https://i.imgur.com/1Mcu3Qp.jpg');
+	const headMaterials = [];
+	
+	for (let i = 0; i < 6; i++) {
+		let map;
+		if (i === 5) map = headMap;
+		else if (i === 0) map = rightMap;
+		else if (i === 1) map = leftMap;
+		else map = skinMap;
+		headMaterials.push(new THREE.MeshBasicMaterial({ map: map }));
+	}
+	
+	var headGroup = new THREE.Group();
+	var headBody = new THREE.Mesh (new THREE.BoxGeometry(2.52*k, 2.52*k, 2.52*k), headMaterials);
+	
+	headGroup.add (headBody);
+	headBody.position.y = 2.52*k/2;
+	return headGroup;
+}
+
+function makeTorso () {
+
+	const before = new THREE.TextureLoader().load('https://i.imgur.com/Wld16Hu.jpg')
+	const after = new THREE.TextureLoader().load('https://i.imgur.com/25SXx5T.jpg')
+	const left = new THREE.TextureLoader().load('https://i.imgur.com/W08hPMJ.jpg')
+	const right = new THREE.TextureLoader().load('https://i.imgur.com/1abCkVz.jpg')
+	const skinMap = new THREE.TextureLoader().load('https://i.imgur.com/1Mcu3Qp.jpg');	
+	const headMaterials = [];
+	
+	for (let i = 0; i < 6; i++) {
+		let map;
+		if (i === 5) map = before;
+		else if(i === 4) map = after;
+		else if(i === 1) map = right;
+		else if(i === 0) map = left;
+		else map = skinMap;
+		headMaterials.push(new THREE.MeshBasicMaterial({ map: map }));
+	}	
+	
+	var group = new THREE.Group();
+	var body = new THREE.Mesh (new THREE.BoxGeometry(2.52*k, 3.48*k, 1.26*k), headMaterials);
+	
+	group.add (body);
+	body.position.y = 3.48*k/2;
+	return group;
+}
+
+function keyframe(t) {
+	var s = ((t - ts) % T) / T;
+	for (var i = 1; i < keys.length; i++) {
+		if (keys[i][0] > s) break;
+	}
+	// take i-1
+	var ii = i - 1;
+	var a = (s - keys[ii][0]) / (keys[ii + 1][0] - keys[ii][0]);
+	intKey = [keys[ii][1].theta1 * (1 - a) + keys[ii + 1][1].theta1 * a,
+			keys[ii][1].theta2 * (1 - a) + keys[ii + 1][1].theta2 * a,
+			keys[ii][1].theta3 * (1 - a) + keys[ii + 1][1].theta3 * a
+	];
+}
+
+function animate() {
+	var t = clock.getDelta ();
+	
+	time1 += t;
+	if(time1 > 1.1){
+		buildFootPrint_left(num,angle);
+		num += 80;
+		time1 = 0;
+	}
+	
+	time2 += t;
+	if(time2 >= 1.1){
+		buildFootPrint_right(num,angle);
+		num += 80;
+		time2 = 0;
+	}
+	
+	foots_right.forEach(function (b){b.update (dt)});
+	foots_left.forEach(function (b){b.update (dt)});
+////////////////////////////////////////////////////
+	keyframe(clock.getElapsedTime());
+
+ 	angle += 0.005;
+	mine.position.set (400*Math.cos(angle), 0, -400*Math.sin(angle));
+	
+	mine.rotation.y = angle;
+	
+	
+	leftarm.rotation.y = intKey[0]	//gcontrol.theta1;
+	rightarm.rotation.y = -intKey[0]
+	
+	leftleg.rotation.y = intKey[1]	//gcontrol.theta2;//
+	rightleg.rotation.y = -intKey[2]
+	
+	requestAnimationFrame(animate);
+	render();
+}
+
+function render() {
+
+  renderer.render(scene, camera);
+}
+
+</script>
+</body>
+</html>
