@@ -1,4 +1,15 @@
 <!DOCTYPE html>
+<style type="text/css">
+#toggle{
+	position: absolute;
+	top: 9%;
+	left:13%;
+	width: 25%;
+	font-size:30px;
+	padding:10px;
+	text-align:center;
+}
+</style>
 <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
 <!-- three.js library -->
 <script src='../examples/vendor/three.js/build/three.min.js'></script>
@@ -12,10 +23,46 @@
 	<br/>
 	init-animate format<br>
 	smoothed control
+	
+<div id="info">Agent (Seek, Arrival, Collision)<br>
+<p id="message"></p>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/107/three.min.js"></script>
+<script src="https://threejs.org/examples/js/controls/OrbitControls.js"></script>
+<script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
+
+<script src="./agent0.js"></script>
+<script src="./obstacle.js"></script>
+<script src="./target.js"></script>
+
+<!-- must be before main.js -->
+<script src="./scene.js"></script>
+<script src="./threemain.js"></script>
+
+<script src="https://jyunming-chen.github.io/tutsplus/js/KeyboardState.js"></script>
+<button id = "toggle">go</button>
+	
 </div><script>
 var renderer, scene, camera, stats;
 var arToolkitSource, arToolkitContext;
 var smoothedControls, markerRoot, smoothedRoot;
+var arWorldRoot;
+
+var A = 1/160;
+
+var agent1;
+var agent2;
+
+var turn = false;
+$("#toggle").click(function(){
+	turn = !turn;
+	if(turn)
+		$("#toggle").text('stop');
+	else
+		$("#toggle").text('run')
+})
+
 
 init();
 animate();
@@ -107,7 +154,7 @@ function init() {
 	scene.add(markerRoot)
 	var artoolkitMarker = new THREEx.ArMarkerControls(arToolkitContext, markerRoot, {
 		type : 'pattern',
-		patternUrl : THREEx.ArToolkitContext.baseURL + '../data/data/patt.hiro'
+		patternUrl : THREEx.ArToolkitContext.baseURL + '../data/data/patt.smile'
 		// patternUrl : THREEx.ArToolkitContext.baseURL + '../data/data/patt.kanji'
 	})
 
@@ -125,32 +172,62 @@ function init() {
 	//		add an object in the scene
 	//////////////////////////////////////////////////////////////////////////////////
 
-	let arWorldRoot = smoothedRoot
+	arWorldRoot = smoothedRoot
 	
 	// add a torus knot	
-	let geometry	= new THREE.CubeGeometry(1,1,1);
-	let material	= new THREE.MeshNormalMaterial({
+
+  var gridXZ = new THREE.GridHelper(800*A, 2, 'gray', 'gray');
+  arWorldRoot.add(gridXZ);
+  
+	
+	var geometry	= new THREE.PlaneGeometry(5,5);
+	var material	= new THREE.MeshNormalMaterial({
 		transparent : true,
 		opacity: 0.5,
 		side: THREE.DoubleSide
 	}); 
-	let mesh	= new THREE.Mesh( geometry, material );
-	mesh.position.y	= geometry.parameters.height/2
-	arWorldRoot.add( mesh );
+	var mesh = new THREE.Mesh( geometry, material );
+	mesh.rotation.x = -Math.PI/2;	
+	//arWorldRoot.add( mesh );
 	
-	geometry	= new THREE.SphereGeometry(0.5, 40, 40);
-	material	= new THREE.MeshNormalMaterial(); 
-	mesh	= new THREE.Mesh( geometry, material );
-	mesh.position.y	= 0.5
-	arWorldRoot.add( mesh );
 
+  // in scene.js
+  sceneFromJSON ( );  // using LevelDesigner
+  
+  //////////////////////////////////////////////////////////////////////////	
+  	let size = 10; // halfsize of agent
+
+    agent1 = new Agent(new THREE.Vector3(160*A,0,0), size*A);
+	//agent2 = new Agent(new THREE.Vector3(-60*A,0,150*A), size*A);
+	
+	//var axes = new THREE.AxisHelper(1);
+	//arWorldRoot.add (axes);
+	
 	stats = new Stats();
 	document.body.appendChild( stats.dom );
 }
 
 function animate() {
-
-	requestAnimationFrame (animate);
+	
+	if (turn) {
+	agent1.update(0.01);
+	//agent2.update(0.01);
+	
+	// check agent crossing obstacles ...
+	arWorldRoot.obstacles.forEach ( function (obs) { obs.checkCollision (agent1)} );
+	//arWorldRoot.obstacles.forEach ( function (obs) { obs.checkCollision (agent2)} );
+	}	
+	
+	
+	if(arWorldRoot.targets.length > 0){
+		requestAnimationFrame(animate);
+	}
+	else if(arWorldRoot.targets.length == 0){
+		setRandomTargets();
+		requestAnimationFrame(animate);
+	}	
+	
+		
 	renderer.render (scene, camera);
 	stats.update();
 	
@@ -159,7 +236,8 @@ function animate() {
 	arToolkitContext.update( arToolkitSource.domElement )
 
 	smoothedControls.update (markerRoot)
-	smoothedRoot.children[1].rotation.x += 0.1;
+	//smoothedRoot.children[1].rotation.x += 0.1;
+	
 	
 }
 	
