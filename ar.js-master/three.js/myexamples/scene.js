@@ -1,7 +1,6 @@
 function sceneFromJSON () {
 
   arWorldRoot.obstacles = []
-  
 	arWorldRoot.obstacles.push (new Obstacle (new THREE.Vector3 (  1.5, 0,  1.5), 30*A))
 	arWorldRoot.obstacles.push (new Obstacle (new THREE.Vector3 ( -1.5, 0, -1.5), 30*A))
 	arWorldRoot.obstacles.push (new Obstacle (new THREE.Vector3 (  1.5, 0, -1.5), 30*A))
@@ -9,6 +8,7 @@ function sceneFromJSON () {
 	arWorldRoot.obstacles.push (new Obstacle (new THREE.Vector3 (    0, 0,    0), 30*A))
 
   arWorldRoot.targets = []
+	arWorldRoot.targets.push (new Target (1, new THREE.Vector3 (-1.75,0,0.5) ));
 
 }
 

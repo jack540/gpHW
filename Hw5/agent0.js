@@ -25,13 +25,14 @@ class Agent {
     this.target = null;
     this.halfSize = halfSize;  // half width
     this.mesh = agentMesh (this.halfSize, 'cyan');
-    this.MAXSPEED = 3;//10;
-    this.ARRIVAL_R = 0.5//10;
+    this.MAXSPEED = 70;
+    this.ARRIVAL_R = 30;
+    
     this.score = 0;
     
     // for orientable agent
     this.angle = 0;
-    arWorldRoot.add (this.mesh);
+    scene.add (this.mesh);
   }
   
   update(dt) {
@@ -47,15 +48,16 @@ class Agent {
     
     // collision
     // for all obstacles in the scene
-    let obs = arWorldRoot.obstacles;
+    let obs = scene.obstacles;
 	let p = this.pos.clone();
 	let minproj = null;
 	let minperp = new THREE.Vector3();; 
 	let vhat = this.vel.clone().normalize();
 	let halfSize = this.halfSize;
 	let force = this.force;
-	const REACH = 90*A;
-	const K = 120;
+	
+	const REACH = 80;
+	const K = 50;
 	
 	obs.forEach (function (item, index, arr) {
 		let point = item.mesh.position.clone().sub(p) 	// c-p
@@ -65,29 +67,34 @@ class Agent {
 			let perp = new THREE.Vector3();
 			perp.subVectors (point, vhat.clone().setLength(proj));
 
-			if(minproj == null) {
+			if(minproj == null){
 				minproj = proj;
 				minperp = perp;
-			}else if(minproj != null) {
+			}else if(minproj != null){
 				if(proj < minproj){
 					minproj = proj;
 					minperp = perp;
 				}
 			}
 			
-			let overlap = item.size + halfSize/2 - minperp.length() + 0.05; //障礙物半徑增加,未改時Agent會擦到障礙物的邊緣
+			let overlap = 35 + halfSize/2 - minperp.length(); //障礙物半徑增加5,未改時Agent會擦到障礙物的邊緣
 			if (overlap > 0) {
 				minperp.setLength (K*overlap);
 				minperp.negate();
 				force.add (minperp);	//斥力
-				console.log ("hit轉彎");
+				console.log ("hit:", minperp);
 			}
 		}
 	})
+	
+	
     // pick the most threatening one
     // apply the repulsive force
     // (write your code here)
-	
+
+
+
+
 	// Euler's method       
     this.vel.add(this.force.clone().multiplyScalar(dt));
 
@@ -97,7 +104,7 @@ class Agent {
     let dst = diff.length();
     if (dst < this.ARRIVAL_R) {
       this.vel.setLength(dst)
-      const REACH_TARGET = 5*A;
+      const REACH_TARGET = 5;
       if (dst < REACH_TARGET) {// target reached
       	console.log ('target reached');
          this.target.setFound (this);
@@ -111,15 +118,15 @@ class Agent {
     
     // for orientable agent
     // non PD version
-    if (this.vel.length() > 0.1*A) {
+    if (this.vel.length() > 0.1) {
 	    	this.angle = Math.atan2 (-this.vel.z, this.vel.x)
     		this.mesh.rotation.y = this.angle
    	}
   }
 
   findTarget () {
-  	console.log ('total: ' + arWorldRoot.targets.length)
-  	let allTargets = arWorldRoot.targets;
+  	console.log ('total: ' + scene.targets.length)
+  	let allTargets = scene.targets;
   	let minD = 1e10;
   	let d;
   	for (let i = 0; i < allTargets.length; i++) {
@@ -140,7 +147,7 @@ class Agent {
 
   accumulateForce() {
     // seek
-    this.force.copy(this.targetInducedForce(this.target.pos)); 
+    this.force.copy(this.targetInducedForce(this.target.pos));
   }
 
 }
